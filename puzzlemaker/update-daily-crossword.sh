@@ -1,22 +1,23 @@
 #!/bin/bash
 set -uo pipefail
 
-# 0. Resolve every path relative to this script's own location, not the
-# caller's working directory. Cron invokes this as "./update-daily-crossword.sh"
-# from whatever cwd is set in the crontab entry -- if that cwd ever drifts
-# (or someone runs it manually from elsewhere), relative paths like
-# "daily-swedish-crossword" or "templates" silently point at the wrong place,
-# the script fails early, and daily.xml just stops updating with no obvious
-# signal beyond a quiet gap in cron.log.
+# 0. This script lives INSIDE the daily-swedish-crossword repo (it's
+# puzzlemaker/update-daily-crossword.sh in that same checkout). There is no
+# need for a separate nested clone to push through -- the repo root, one
+# level up from this script, already IS the thing we need to commit and
+# push. An earlier version of this script assumed it lived somewhere else
+# and needed its own "daily-swedish-crossword" clone alongside it; that
+# clone ended up nested at puzzlemaker/daily-swedish-crossword/ and got
+# written to and pushed instead of the real repo root daily.xml -- the file
+# 1.0.8-and-earlier app builds actually read
+# (raw.githubusercontent.com/.../main/daily.xml). That nested clone is
+# unrelated to this file's output and should be deleted on the server.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR" || exit 1
+REPO_DIR="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
-# 1. Configuration
-REPO_DIR="$SCRIPT_DIR/daily-swedish-crossword"
-REPO_URL="https://github.com/byesilbag/daily-swedish-crossword.git"
-COMMIT_MSG="Update daily crossword"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 CLUES_FILE="$SCRIPT_DIR/posta_clues_upper.csv"
+COMMIT_MSG="Update daily crossword"
 
 # Check if GITHUB_TOKEN is set
 if [ -z "${GITHUB_TOKEN:-}" ]; then
@@ -30,7 +31,7 @@ if [ ! -f "$CLUES_FILE" ]; then
     exit 1
 fi
 
-# 1b. Pick today's template deterministically from the pool.
+# 1. Pick today's template deterministically from the pool.
 # Same calendar day -> same template, even if this script runs more than
 # once that day. The pool rotates so consecutive days don't repeat the
 # same grid shape, instead of always using a single fixed layout.
@@ -49,42 +50,25 @@ TEMPLATE_FILE="${TEMPLATES[$TEMPLATE_INDEX]}"
 
 echo "Selected template: $TEMPLATE_FILE (day $DAY_OF_YEAR of $TEMPLATE_COUNT templates)"
 
-# 1c. Make sure we have a local clone to push through. Previously this was a
-# hard requirement the operator had to set up by hand; if that clone was ever
-# missing (fresh box, wrong path, accidentally deleted) the script just
-# errored out on every run instead of recovering, so daily.xml silently
-# stopped reaching the address old app versions still read
-# (raw.githubusercontent.com/.../main/daily.xml).
-if [ ! -d "$REPO_DIR/.git" ]; then
-    echo "Repo not found at $REPO_DIR, cloning..."
-    git clone "$REPO_URL" "$REPO_DIR" || { echo "Error: clone failed."; exit 1; }
-fi
+# 2. Make sure the repo checkout is up to date and clean before we write
+# into it, so a stray local commit never silently blocks the push below.
+cd "$REPO_DIR" || exit 1
+git remote set-url origin "https://${GITHUB_TOKEN}@github.com/byesilbag/daily-swedish-crossword.git"
+git pull origin main
 
-# 2. Run the Python Generator, writing straight into the repo clone so the
-# committed file (repo root daily.xml) is exactly what old app versions fetch.
+# 3. Run the Python Generator, writing straight into the repo root -- the
+# exact path old app versions fetch via raw.githubusercontent.com.
 echo "Generating crossword..."
 python3 "$SCRIPT_DIR/generate_crossword_optimized.py" -i "$TEMPLATE_FILE" -c "$CLUES_FILE" -o "$REPO_DIR/daily.xml"
 
-# Check if Python script succeeded
 if [ $? -ne 0 ]; then
     echo "Error: Python script failed. Aborting."
     exit 1
 fi
 
-# 3. Git Operations
-cd "$REPO_DIR" || exit 1
-
-# Configure remote with token for authentication
-# This sets the origin to https://<TOKEN>@github.com/...
-git remote set-url origin "https://${GITHUB_TOKEN}@github.com/byesilbag/daily-swedish-crossword.git"
-
-# Pull latest changes to avoid conflicts (optional but recommended)
-git pull origin main  # Change 'main' to 'master' if that is your default branch
-
-# Stage the file
+# 4. Git Operations
 git add daily.xml
 
-# Check if there are changes to commit
 if git diff-index --quiet HEAD --; then
     echo "No changes detected in daily.xml. Nothing to push."
 else
@@ -92,7 +76,7 @@ else
     git commit -m "$COMMIT_MSG"
 
     echo "Pushing to GitHub..."
-    if git push origin main; then # Change 'main' to 'master' if needed
+    if git push origin main; then
         echo "Success! daily.xml updated at raw.githubusercontent.com/byesilbag/daily-swedish-crossword/main/daily.xml"
     else
         echo "Error: push failed. daily.xml was generated but NOT published."
