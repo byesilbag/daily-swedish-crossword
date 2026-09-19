@@ -1,0 +1,13 @@
+{
+  "_comment": "Uygulama acilista bunu okur. minimum > yuklu surum ise ZORUNLU guncelleme (kapatilamaz), latest > yuklu surum ise kapatilabilir bildirim. minimum'u sadece gercekten sart oldugunda yukselt: yanlis bir deger tum kullanicilari disarida birakir.",
+  "ios": {
+    "latest": "1.0.8",
+    "minimum": "0.0.0",
+    "storeUrl": "https://apps.apple.com/tr/app/id6758946230"
+  },
+  "android": {
+    "latest": "1.0.8",
+    "minimum": "0.0.0",
+    "storeUrl": "https://play.google.com/store/apps/details?id=com.turkishcrossword.cengelbulmaca"
+  }
+}
