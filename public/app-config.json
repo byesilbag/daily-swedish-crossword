@@ -6,7 +6,7 @@
     "storeUrl": "https://apps.apple.com/tr/app/id6758946230"
   },
   "android": {
-    "latest": "1.0.8",
+    "latest": "1.0.11",
     "minimum": "0.0.0",
     "storeUrl": "https://play.google.com/store/apps/details?id=com.turkishcrossword.cengelbulmaca"
   }
