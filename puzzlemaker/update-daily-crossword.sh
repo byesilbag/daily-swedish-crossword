@@ -66,6 +66,11 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# The app draws a clue cell's first clue in the top half (word starting to
+# the right) and the second in the bottom half (word starting below). Make
+# sure the generated file follows that order whatever the template says.
+python3 "$SCRIPT_DIR/fix_clue_order.py" "$REPO_DIR/daily.xml"
+
 # 4. Git Operations
 git add daily.xml
 
