@@ -58,12 +58,23 @@ git pull origin main
 
 # 3. Run the Python Generator, writing straight into the repo root -- the
 # exact path old app versions fetch via raw.githubusercontent.com.
-echo "Generating crossword..."
-python3 "$SCRIPT_DIR/generate_crossword_optimized.py" -i "$TEMPLATE_FILE" -c "$CLUES_FILE" -o "$REPO_DIR/daily.xml"
+# Today's dated puzzle (public/daily/<date>.xml, Istanbul time) is the same
+# one 1.0.9+ apps fetch from Vercel: built from the easy everyday-word
+# dictionary. Old apps get it too by copying it to daily.xml. The template
+# generator below is only a fallback for dates that have no file yet.
+TODAY=$(TZ=Europe/Istanbul date +%Y-%m-%d)
+DATED="$REPO_DIR/public/daily/$TODAY.xml"
+if [ -f "$DATED" ]; then
+    echo "Using dated puzzle $DATED"
+    cp "$DATED" "$REPO_DIR/daily.xml"
+else
+    echo "No dated puzzle for $TODAY, generating from template..."
+    python3 "$SCRIPT_DIR/generate_crossword_optimized.py" -i "$TEMPLATE_FILE" -c "$CLUES_FILE" -o "$REPO_DIR/daily.xml"
 
-if [ $? -ne 0 ]; then
-    echo "Error: Python script failed. Aborting."
-    exit 1
+    if [ $? -ne 0 ]; then
+        echo "Error: Python script failed. Aborting."
+        exit 1
+    fi
 fi
 
 # The app draws a clue cell's first clue in the top half (word starting to
